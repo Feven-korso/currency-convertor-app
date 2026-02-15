@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react'
-import { getRate } from './data/rate'
+import { useState, useEffect } from 'react'
+import { fetchConversion } from './api/frankfurter'
 import { CurrencySelect } from './components/CurrencySelect'
 import './App.css'
 
@@ -8,23 +8,79 @@ function App() {
   const [fromCurrency, setFromCurrency] = useState<string>('USD')
   const [toCurrency, setToCurrency] = useState<string>('NPR')
 
-  const rate = useMemo(() => getRate(fromCurrency, toCurrency), [fromCurrency, toCurrency])
-  const converted = useMemo(() => {
-    const num = parseFloat(amount) || 0
-    if (rate === null) return null
-    return Math.round(num * rate * 100) / 100
-  }, [amount, rate])
+  const [converted, setConverted] = useState<number | null>(null)
+  const [rateDate, setRateDate] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const resultText = useMemo(() => {
-    const num = parseFloat(amount) || 0
-    if (rate === null) return 'Rate not available'
-    if (converted === null) return 'Rate not available'
-    return `${num} ${fromCurrency} = ${converted.toFixed(2)} ${toCurrency}`
-  }, [amount, fromCurrency, toCurrency, converted, rate])
+  useEffect(() => {
+    const num = parseFloat(amount)
+    if (amount === '' || amount === '.' || Number.isNaN(num) || num < 0) {
+      setConverted(null)
+      setRateDate(null)
+      setError(null)
+      setLoading(false)
+      return
+    }
+
+    const controller = new AbortController()
+    setLoading(true)
+    setError(null)
+
+    fetchConversion(fromCurrency, toCurrency, num, controller.signal)
+      .then((result) => {
+        if (controller.signal.aborted) return
+        setConverted(result.converted)
+        setRateDate(result.date)
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return
+        setConverted(null)
+        setRateDate(null)
+        setError(err instanceof Error ? err.message : 'Failed to fetch rate')
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [amount, fromCurrency, toCurrency])
 
   const handleSwap = () => {
     setFromCurrency(toCurrency)
     setToCurrency(fromCurrency)
+  }
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    if (value === '' || value === '.') {
+      setAmount(value)
+      return
+    }
+    const parts = value.split('.')
+    const intPart = parts[0].replace(/^-/, '') || ''
+    if (intPart.length > 12) return
+    setAmount(value)
+  }
+
+  const num = parseFloat(amount)
+  const isValidAmount = amount !== '' && amount !== '.' && !Number.isNaN(num) && num >= 0
+
+  const resultContent = () => {
+    if (loading) return <span className="result-loading">Loading…</span>
+    if (error) return <span className="result-error">{error}</span>
+    if (!isValidAmount) return <span className="result-muted">Enter an amount to see the conversion.</span>
+    if (converted === null) return null
+    return (
+      <>
+        <span className="result-value">
+          {num} {fromCurrency} = {converted.toFixed(2)} {toCurrency}
+        </span>
+        {rateDate && (
+          <span className="result-date">Rate date: {rateDate}</span>
+        )}
+      </>
+    )
   }
 
   return (
@@ -40,10 +96,11 @@ function App() {
           type="number"
           className="input"
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          onChange={handleAmountChange}
           min="0"
           step="any"
         />
+        <p className="input-hint">Maximum 12 digits before the decimal point.</p>
 
         <div className="currencies-row">
           <div className="currency-group">
@@ -51,6 +108,7 @@ function App() {
             <CurrencySelect
               value={fromCurrency}
               onChange={setFromCurrency}
+              excludeCode={toCurrency}
               aria-label="From currency"
             />
           </div>
@@ -69,12 +127,13 @@ function App() {
             <CurrencySelect
               value={toCurrency}
               onChange={setToCurrency}
+              excludeCode={fromCurrency}
               aria-label="To currency"
             />
           </div>
         </div>
 
-        <p className="result">{resultText}</p>
+        <p className="result">{resultContent()}</p>
 
         <button type="button" className="cta-btn">
           Get Exchange Rate

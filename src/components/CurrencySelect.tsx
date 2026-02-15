@@ -4,10 +4,12 @@ import { currencies, getFlagUrl } from '../data/currencies'
 interface CurrencySelectProps {
   value: string
   onChange: (code: string) => void
+  /** Currency code to disable in this dropdown (e.g. the other dropdown's value) */
+  excludeCode?: string
   'aria-label'?: string
 }
 
-export function CurrencySelect({ value, onChange, 'aria-label': ariaLabel }: CurrencySelectProps) {
+export function CurrencySelect({ value, onChange, excludeCode, 'aria-label': ariaLabel }: CurrencySelectProps) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -49,27 +51,32 @@ export function CurrencySelect({ value, onChange, 'aria-label': ariaLabel }: Cur
           role="listbox"
           aria-label={ariaLabel}
         >
-          {currencies.map((c) => (
-            <li
-              key={c.code}
-              role="option"
-              aria-selected={c.code === value}
-              className="currency-select-option"
-              onClick={() => {
-                onChange(c.code)
-                setOpen(false)
-              }}
-            >
-              <img
-                src={getFlagUrl(c.countryCode)}
-                alt=""
-                className="currency-select-flag"
-                width={24}
-                height={18}
-              />
-              <span>{c.code}</span>
-            </li>
-          ))}
+          {currencies.map((c) => {
+            const disabled = excludeCode != null && c.code === excludeCode
+            return (
+              <li
+                key={c.code}
+                role="option"
+                aria-selected={c.code === value}
+                aria-disabled={disabled}
+                className={`currency-select-option${disabled ? ' currency-select-option-disabled' : ''}`}
+                onClick={() => {
+                  if (disabled) return
+                  onChange(c.code)
+                  setOpen(false)
+                }}
+              >
+                <img
+                  src={getFlagUrl(c.countryCode)}
+                  alt=""
+                  className="currency-select-flag"
+                  width={24}
+                  height={18}
+                />
+                <span>{c.code}</span>
+              </li>
+            )
+          })}
         </ul>
       )}
     </div>
