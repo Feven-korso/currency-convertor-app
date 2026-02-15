@@ -101,6 +101,16 @@
   object-fit: cover;
 }
 
+.currency-select-flag-emoji {
+  flex-shrink: 0;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.currency-select-loading .currency-select-trigger {
+  color: #888;
+}
+
 .currency-select-code {
   flex: 1;
 }

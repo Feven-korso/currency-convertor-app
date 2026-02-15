@@ -1,5 +1,15 @@
 const BASE_URL = 'https://api.frankfurter.app'
 
+/**
+ * Fetch supported currencies from Frankfurter API.
+ * Returns { [currencyCode]: "Currency Name" }, e.g. { "USD": "United States Dollar" }.
+ */
+export async function fetchCurrencies(signal?: AbortSignal): Promise<Record<string, string>> {
+  const res = await fetch(`${BASE_URL}/currencies`, { signal })
+  if (!res.ok) throw new Error(`Failed to fetch currencies (${res.status})`)
+  return res.json()
+}
+
 export interface ConversionResult {
   converted: number
   date: string

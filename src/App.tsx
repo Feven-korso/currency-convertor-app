@@ -1,17 +1,50 @@
 import { useState, useEffect } from 'react'
-import { fetchConversion } from './api/frankfurter'
+import { fetchConversion, fetchCurrencies } from './api/frankfurter'
+import { buildCurrenciesFromApi } from './data/currencies'
+import type { Currency } from './data/currencies'
 import { CurrencySelect } from './components/CurrencySelect'
 import './App.css'
 
 function App() {
+  const [currencies, setCurrencies] = useState<Currency[]>([])
+  const [currenciesLoading, setCurrenciesLoading] = useState(true)
+  const [currenciesError, setCurrenciesError] = useState<string | null>(null)
+
   const [amount, setAmount] = useState<string>('1')
   const [fromCurrency, setFromCurrency] = useState<string>('USD')
-  const [toCurrency, setToCurrency] = useState<string>('NPR')
+  const [toCurrency, setToCurrency] = useState<string>('EUR')
 
   const [converted, setConverted] = useState<number | null>(null)
   const [rateDate, setRateDate] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    fetchCurrencies(controller.signal)
+      .then((apiCurrencies) => {
+        if (controller.signal.aborted) return
+        const list = buildCurrenciesFromApi(apiCurrencies)
+        setCurrencies(list)
+        const codes = list.map((c) => c.code)
+        if (codes.length >= 2) {
+          if (!codes.includes(fromCurrency)) setFromCurrency(codes[0])
+          if (!codes.includes(toCurrency) || toCurrency === fromCurrency) {
+            const other = codes.find((c) => c !== fromCurrency) ?? codes[1]
+            setToCurrency(other)
+          }
+        }
+      })
+      .catch((err) => {
+        if (!controller.signal.aborted) {
+          setCurrenciesError(err instanceof Error ? err.message : 'Failed to load currencies')
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setCurrenciesLoading(false)
+      })
+    return () => controller.abort()
+  }, [])
 
   useEffect(() => {
     const num = parseFloat(amount)
@@ -22,6 +55,7 @@ function App() {
       setLoading(false)
       return
     }
+    if (currencies.length === 0) return
 
     const controller = new AbortController()
     setLoading(true)
@@ -44,7 +78,7 @@ function App() {
       })
 
     return () => controller.abort()
-  }, [amount, fromCurrency, toCurrency])
+  }, [amount, fromCurrency, toCurrency, currencies.length])
 
   const handleSwap = () => {
     setFromCurrency(toCurrency)
@@ -67,6 +101,7 @@ function App() {
   const isValidAmount = amount !== '' && amount !== '.' && !Number.isNaN(num) && num >= 0
 
   const resultContent = () => {
+    if (currenciesError) return <span className="result-error">{currenciesError}</span>
     if (loading) return <span className="result-loading">Loading…</span>
     if (error) return <span className="result-error">{error}</span>
     if (!isValidAmount) return <span className="result-muted">Enter an amount to see the conversion.</span>
@@ -106,9 +141,11 @@ function App() {
           <div className="currency-group">
             <label className="label">From</label>
             <CurrencySelect
+              currencies={currencies}
               value={fromCurrency}
               onChange={setFromCurrency}
               excludeCode={toCurrency}
+              disabled={currenciesLoading}
               aria-label="From currency"
             />
           </div>
@@ -118,6 +155,7 @@ function App() {
             className="swap-btn"
             onClick={handleSwap}
             aria-label="Swap currencies"
+            disabled={currenciesLoading}
           >
             ⇄
           </button>
@@ -125,9 +163,11 @@ function App() {
           <div className="currency-group">
             <label className="label">To</label>
             <CurrencySelect
+              currencies={currencies}
               value={toCurrency}
               onChange={setToCurrency}
               excludeCode={fromCurrency}
+              disabled={currenciesLoading}
               aria-label="To currency"
             />
           </div>

@@ -1,15 +1,23 @@
 import { useState, useRef, useEffect } from 'react'
-import { currencies, getFlagUrl } from '../data/currencies'
+import { getFlagUrl, type Currency } from '../data/currencies'
 
 interface CurrencySelectProps {
+  currencies: Currency[]
   value: string
   onChange: (code: string) => void
-  /** Currency code to disable in this dropdown (e.g. the other dropdown's value) */
   excludeCode?: string
+  disabled?: boolean
   'aria-label'?: string
 }
 
-export function CurrencySelect({ value, onChange, excludeCode, 'aria-label': ariaLabel }: CurrencySelectProps) {
+export function CurrencySelect({
+  currencies,
+  value,
+  onChange,
+  excludeCode,
+  disabled = false,
+  'aria-label': ariaLabel,
+}: CurrencySelectProps) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -25,24 +33,37 @@ export function CurrencySelect({ value, onChange, excludeCode, 'aria-label': ari
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  if (currencies.length === 0) {
+    return (
+      <div className="currency-select currency-select-loading">
+        <button type="button" className="currency-select-trigger" disabled>
+          <span className="currency-select-code">Loading currencies…</span>
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="currency-select" ref={containerRef}>
       <button
         type="button"
         className="currency-select-trigger"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => !disabled && setOpen((o) => !o)}
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-label={ariaLabel}
+        disabled={disabled}
       >
-        <img
-          src={getFlagUrl(selected.countryCode)}
-          alt=""
-          className="currency-select-flag"
-          width={24}
-          height={18}
-        />
-        <span className="currency-select-code">{selected.code}</span>
+        {selected?.countryCode && (
+          <img
+            src={getFlagUrl(selected.countryCode)}
+            alt=""
+            className="currency-select-flag"
+            width={24}
+            height={18}
+          />
+        )}
+        <span className="currency-select-code">{selected?.code ?? value}</span>
         <span className="currency-select-chevron" aria-hidden>▼</span>
       </button>
       {open && (
@@ -52,27 +73,29 @@ export function CurrencySelect({ value, onChange, excludeCode, 'aria-label': ari
           aria-label={ariaLabel}
         >
           {currencies.map((c) => {
-            const disabled = excludeCode != null && c.code === excludeCode
+            const isDisabled = excludeCode != null && c.code === excludeCode
             return (
               <li
                 key={c.code}
                 role="option"
                 aria-selected={c.code === value}
-                aria-disabled={disabled}
-                className={`currency-select-option${disabled ? ' currency-select-option-disabled' : ''}`}
+                aria-disabled={isDisabled}
+                className={`currency-select-option${isDisabled ? ' currency-select-option-disabled' : ''}`}
                 onClick={() => {
-                  if (disabled) return
+                  if (isDisabled) return
                   onChange(c.code)
                   setOpen(false)
                 }}
               >
-                <img
-                  src={getFlagUrl(c.countryCode)}
-                  alt=""
-                  className="currency-select-flag"
-                  width={24}
-                  height={18}
-                />
+                {c.countryCode && (
+                  <img
+                    src={getFlagUrl(c.countryCode)}
+                    alt=""
+                    className="currency-select-flag"
+                    width={24}
+                    height={18}
+                  />
+                )}
                 <span>{c.code}</span>
               </li>
             )
